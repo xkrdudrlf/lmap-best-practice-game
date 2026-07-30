@@ -1,0 +1,10 @@
+---
+description: LMAP project conventions — company-specific PHP APIs, helpers, and patterns not covered by generic standards.
+alwaysApply: false
+---
+
+## LMAP
+
+> **Examples:** `../examples/lmap.md`
+
+- `getEntityById($class, $name, …)` — `$name` is interpolated into exception messages (`Invalid {name}Id`, `No {name} found…`). Use one canonical lower sentence-case label per entity `$class` (derived from the class name); every call site for the same `::class` must pass the same `$name`. Flag any label that does not correspond to `$class` — PascalCase class names, UI or domain slang, synonyms, or any string that diverges from sibling calls for that entity.

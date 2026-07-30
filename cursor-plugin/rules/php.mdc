@@ -1,0 +1,73 @@
+---
+description: PHP standards — PSR, DI, security, datetime, side effects, error handling, return values, naming, control structures.
+alwaysApply: false
+---
+
+## PHP [PHP The Right Way](https://phptherightway.com/)
+
+> **Examples:** `../examples/php.php`
+
+- Follow PSR-1, PSR-12, and PSR-4 for code style, naming, and autoloading.
+- Use constructor dependency injection; depend on interfaces or abstractions, not concrete classes.
+- Use type hints and return types consistently; remove unused imports and unused dependency injections.
+- Prefer early returns over deeply nested logic; break complex statements into readable steps.
+- Validate datetime inputs against the expected format; handle invalid values gracefully.
+- Use `DateTimeImmutable` and `DateInterval` for date arithmetic — never assume a fixed number of seconds per day (DST and time zones break that assumption).
+- Never trust foreign input — validate and sanitize all external data (`$_GET`, `$_POST`, headers, uploads, third-party payloads) with `filter_input()` / `filter_var()` before use.
+- Use prepared statements (PDO/Doctrine); never concatenate user input into SQL.
+- Protect against CSRF (form tokens, framework middleware).
+- Hash passwords with `password_hash()` / `password_verify()` (or Symfony's auto password hasher); never roll your own hashing or use fast general-purpose hashes (e.g. SHA256) for passwords.
+- Never `unserialize()` data from users or other untrusted sources; use JSON (`json_decode` / `json_encode`) for interchange formats.
+- Sanitize user-controlled file paths — strip `../`, null bytes, and path separators before filesystem access to prevent path traversal.
+- Use `escapeshellarg()` (or avoid shelling out) when passing external input to command-line tools.
+- Escape output with `htmlspecialchars($value, ENT_QUOTES, 'UTF-8')` to prevent XSS.
+- Prefer typed exceptions over silent failures; avoid the `@` error suppression operator.
+- Use `mb_*` functions for Unicode string operations; use `utf8mb4` charset for database connections and tables.
+- Avoid unnecessary function calls inside loops; avoid N+1 database queries inside loops.
+- Inside `foreach` / `array_map`, do not repeat repository or service lookups when arguments are **loop-invariant** (identical every iteration) — hoist before the loop. When one argument varies among distinct values per row (e.g. moodle outcome string in a batch), collect unique keys, resolve them with **one batch query** before the loop, map results by key, then index inside the loop. A `??=` cache inside the loop still issues one query per distinct key — prefer a repository `IN (:…)` / plural service method when more than one distinct key is possible.
+- Avoid querying entire tables that may return large result sets; use filtering, pagination, or limits.
+- Prefer single quotes (`'`) for strings without interpolation.
+
+### Side effects and accidental mutation
+
+- Prefer bulk data transformation over loop-based accumulation that mutates shared state (`$result = transformData($items)` instead of reassigning `$result` inside `foreach`).
+- Use `array_reduce`, `array_map`, or `array_filter` for collection transforms; assign the result once rather than mutating a running variable across iterations.
+- Design functions to accept entire collections when the caller would otherwise loop; encapsulate iteration inside the transformer and return a new structure.
+- Objects are passed by handle — avoid mutating object parameters or shared references inside loops; build and return new structures instead.
+- Prefer immutable types where available (e.g. `DateTimeImmutable` over `DateTime`); return new instances rather than modifying in place.
+- Minimize side effects (DB writes, global state, mutating parameters); when unavoidable, keep them explicit, localized, and easy to trace.
+- Never `echo`, `print`, or `var_dump` from services or repositories — return data to the controller/template layer.
+- `unset()` on a function parameter array does not affect the caller's copy — do not treat it as state mutation.
+
+### Error handling (try/catch)
+
+- Keep try blocks tiny — only wrap lines that may fail under normal runtime conditions (network, I/O, external services).
+- Fail fast: run input validation and business preconditions outside try/catch when they do not depend on risky operations.
+- Catch specific exceptions (`RecordNotFoundException`, `GatewayTimeoutException`), not `\Exception` or `\Throwable`, unless writing a global framework handler.
+- When multiple independent preconditions each warrant failure, use **separate `if` blocks** that each `throw` a **distinct message** — do not combine unrelated checks with `||` or `&&` in one `if` that throws a single blended message (`"not commenced or has been withdrawn"`). Operators and logs must be able to tell which rule failed without re-running the request.
+- Never swallow exceptions silently — log with context, fall back to a safe default, or re-throw (optionally wrapped with the original as `$previous` to preserve the stack trace).
+- Use domain-specific exceptions for business-logic failures so callers can handle them semantically.
+- Use `finally` to release resources (connections, file handles, sockets) even when an exception is thrown or `return` is hit.
+
+### Return values (avoid associative array wrappers)
+
+- Do not return untyped nested associative arrays as multi-value wrappers (`return ['numbers' => ..., 'fruits' => ...]`).
+- If datasets are independent, split into focused functions with explicit return types and documented array shapes.
+- When multiple related values must travel together, use a readonly DTO or value object with typed properties and getters — not string keys on a generic `array`.
+- Do not overload a nullable collection or object property to mean both “data absent” and a separate success/readiness outcome when a `bool` or dedicated result type can express the outcome; callers should not infer business state from `getItems() === null` alone.
+- Classes in `src/Dto/` must not depend on `EntityManagerInterface` or call `persist` / `flush` — return result data from services; let the service (or controller transaction) own the unit of work.
+- Prefer explicit return type hints and PHPDoc `@return` for array shapes when a plain array is still the right choice.
+
+### Function naming
+
+- Start function and method names with a clear verb (`get`, `fetch`, `save`, `validate`, `send`) — not a bare noun or adjective (`product`, `activeUsers`).
+- Avoid vague verbs (`handle`, `process`, `manage`); name the specific domain action (`saveUser`, `validatePayload`).
+- Avoid `And`, `Or`, or `Then` in names — decompose into single-purpose functions and coordinate them with a higher-level orchestrator (e.g. `registerAndMailAndPdf` → separate commands).
+- Name methods for **what** they do or perform in domain terms — not **how** (transport, protocol, persistence mechanism), **where** (downstream system, queue, replica, cache layer), or **why/when** (trigger event, lifecycle step, caller context) unless that context is the domain distinction. Put integration and I/O details inside dedicated clients/producers the method calls.
+- Query prefixes (`get`, `is`, `has`) must not hide mutations; separate read-only queries from state-changing commands (`invalidateExpiredToken`, not `isTokenValid` that deletes).
+- Do not repeat class context in method names when the type already provides it (`OrderRepository::fetch($id)`, not `fetchOrderById`).
+
+### Control structures
+
+- Every `if`, `else`, `elseif`, `foreach`, `while`, and `do` body must use explicit `{}` blocks — even for a single statement (no brace-less or one-line `if ($x) return false;`).
+- Follow PSR-12 placement for control structures; braces make merge-safe refactors and prevent dangling-statement bugs.

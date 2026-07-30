@@ -1,0 +1,242 @@
+---
+description: Review detection checklist — grep patterns, manual passes, diff-context passes, and Standard label traceability.
+alwaysApply: false
+---
+
+## Review detection checklist
+
+> **Purpose:** After scoping sections, walk this table for **every** matching file type. Each row names a **Standard** label (from `skills/lmap-code-review/SKILL.md`) and concrete patterns to search for. Do not skip rows because critical issues were already found.
+
+### Mandatory execution (directory-wide and large reviews)
+
+1. For **each** checklist row whose file-type column matches a file under review, run a repository search (`Grep` / `rg`) for the patterns in the third column — do not rely on memory or skimming.
+2. **Every pattern match is at least one finding** (or split into separate findings when issues are unrelated). Tag with the row's **Standard** label; do not report SQL injection or `@` suppression without a label.
+3. When a row's patterns are searched and absent, note `Standard: <label> — searched, no match` under **Checklist traceability** in the review output.
+4. Controllers, **all** `src/Service/**` classes (not only `*Service.php`), repositories, helpers, and listeners all need SQL-injection and abstraction scans.
+5. After grep passes, run the **Manual review pass** (below) for labels marked `manual` in **Checklist coverage** — grep alone missed real violations in practice (god classes, `mail()`, hard-coded `PEPPER` constants, unpaginated `fetchAllEntitiesForGrid`, in-place migration edits, GET/POST resolution drift, etc.).
+6. Run the **Diff-context passes** (below) on every branch/PR review — these catch issues grep cannot (modified vs new migrations, paired controller actions, Twig component reuse).
+7. In **Checklist traceability**, list **every** Standard label from `skills/lmap-code-review/SKILL.md` — either `N finding(s)` or `searched, no match` / `manual pass, no match`.
+
+### Checklist coverage
+
+Every Standard label in `SKILL.md` must appear in **Checklist traceability**. Rows below are grep-backed; labels marked **manual** still require reading scoped section bullets against every file.
+
+| Label | Coverage |
+|-------|----------|
+| `commit-hygiene`, `scope` | **manual** — PR/commit context only |
+| `lmap` | grep + **manual** — `getEntityById` `$name` labels inconsistent with sibling calls for the same `::class`; see **Grep execution hints** and **Diff-context passes** § `getEntityById` |
+| `conventions` | grep + **manual** — naming/types inconsistent with surrounding code; **method names encoding how/where/why** instead of domain action |
+| `comments`, `modularity`, `yagni` | **manual** — read classes for noise comments, god classes, speculative params |
+| `srp` | grep + **manual** — `function \w*(And|Or)[A-Z]` in services; methods that validate **and** create/persist/flush; **`persistResult` / `persist` on `src/Dto/**` classes** |
+| `php-naming` | grep + **manual** — `function \w*(And|Or)[A-Z]`; **how/where/why tokens in method names** (see grep hints); **manual pass on every new/changed public method** in services, producers, controllers, and JS modules |
+| `abstraction` | grep + **manual** — leaked **how/where/why** in method names at domain call sites (same signals as `php-naming`); reserve integration identifiers for dedicated adapter/client classes |
+| `encapsulation` | grep + **manual** — `public array $…` on services; **`public function` helpers only called from the same class** (should be `private`) |
+| `dry` | grep + **manual** — duplicate method bodies (`*A` / `*B` pairs); Twig/CSS/JS copy-paste; Twig field layouts that should reuse `twig:*` / `include` / macro; **any repeated ≥5–10 line block in the same diff** (see **Diff-context passes** § repeated code blocks) |
+| `modularity` | grep + **manual** — when `dry` repeated-block pass finds substantial duplication, flag missing shared helper, partial, component, utility module, or base CSS class |
+| `simplicity` | **manual** — duplicated markup or logic blocks that should delegate to an existing partial, component, or function |
+| `performance` | grep + **manual** — `findAll()` in loops; **repository/service `find*` / `get*` inside `foreach`** (hoist, or **batch `IN` query** for distinct per-row keys before loop); see **Diff-context passes** § loop lookups |
+| `edge-cases` | grep + **manual** — soft-delete / invalidity flags skipped on displayed entities; incomplete foreach coverage vs sibling service loops; **compound `if (A \|\| B) throw` blending distinct failure reasons**; **nullable payload used as implicit readiness/success signal** |
+| `pg-schema` | **manual** when `migrations/*.php` in diff — `git diff <base>...HEAD` on each migration file (see **Diff-context passes**) |
+| `pg-diagnostics` | **manual** — ops/investigation context only (no static-code signal) |
+| `owasp-defect-management` | **manual** — see manual pass; flag when critical security violations exist in tree without remediation tracking |
+| All other labels | Grep rows in the table below (union file-type column with files under review) |
+
+### Grep execution hints
+
+When a row says "multiple declarations on one line" or similar, run concrete patterns — do not eyeball CSS/JS:
+
+| Standard | Example `rg` patterns (adjust path to files under review) |
+|----------|-----------------------------------------------------------|
+| `css-formatting` | `;\s+[a-z-]+\s*:` in `*.css` (two or more declarations inside `{…}` on one line) |
+| `encapsulation` | `private static array \$` and `public array \$` in `src/Service/**` |
+| `php-di` | `function \w+\(\$` in `src/**/*.php` (untyped `$param` in app code) |
+| `html-links` | `<time(?![^>]*datetime)` and `<abbr(?![^>]*title)` in `*.twig` |
+| `symfony-i18n` | `\{% trans %\}[A-Za-z][^%]*\{% endtrans %\}` in `*.twig` (prose literals, not `key.name` ids) |
+| `pg-locking` | `httpClient->request` or `HttpClientInterface` in `*Listener.php` / `*Subscriber.php` |
+| `api-rest` | `methods: \['DELETE'\]` in `*Controller.php` paired with `new JsonResponse` (expect `HTTP_NO_CONTENT`) |
+| `php-side-effects` | `\$request->request->(remove|set|add|replace)\(` in `src/Service/**` or `src/Repository/**` |
+| `php-naming` / `srp` | `function \w*(And|Or)[A-Z]\w*` in `src/Service/**` (e.g. `validateOrCreateEmergencyContact`) |
+| `php-naming` / `abstraction` / `js-functions` | **How:** `function \w*(Via|Through|Using|With)(Smtp|Http|Https|Redis|Postgres|Queue|Mq|Json|Xml|Grpc|Soap|Api)`; **Where:** `\w*(To|From|Into)(Redis|S3|Crm|Tap|Mq|Api|Db|Sql|Elastic)`; **Why/when:** `\w*(On|When|After|Before)(Submit|Click|Load|Failure|Success|Initial|Checkout)[A-Z]` in `src/**/*.php` and `assets/**/*.{js,ts}` — then **manual pass**: does the name state the domain action, or mechanism/destination/trigger? |
+| `separation-of-concerns` / `symfony-services` | `EntityManagerInterface` in `src/Dto/**`; `function persist\w*\(` or `->persist\(` inside `src/Dto/**`; `$result->persistResult\(` at call sites — persistence belongs on the owning service |
+| `php-exceptions` / `api-errors` / `edge-cases` | Multiline: `if\s*\([\s\S]*?(\|\||&&)[\s\S]*?\)\s*\{[\s\S]*?throw` in `src/**/*.php`; exception strings with `\bor\b` / `\band\b` joining failure reasons (`throw new \w+\([^)]+\bor\b[^)]+\)`) — split into one `if` + distinct message per independent precondition |
+| `single-source-of-truth` / `php-returns` / `edge-cases` | `(doAll|isAll|hasAll|canAll|isReady|isComplete)\w*\s*\?\s*\$\w+\s*:\s*null` in PHP; `!is_null\(\$\w+\)\s*&&\s*!is_null\(\$\w+->get\w+\(\)\)` (DTO + nested getter null guards); JS/TS: `items:\s*\w+\s*\?\s*\w+\s*:\s*null` with a sibling `doAll`/`isReady`/`hasAll` boolean in the same function — flag **double duty** (payload nullability encoding a separate outcome) |
+| `encapsulation` | In new/changed `src/Service/**`: each `public function get\w+` — `rg` method name across `src/`; only hits in same file → should be `private` |
+| `dry` / `simplicity` | Same diff adds `Twig/Component/*` or `<twig:Foo` **and** another `.twig` repeats the same `lmap-readonly-label` / field-name row grid — reuse the component |
+| `dry` / `modularity` | **Repeated blocks (all languages)** — in changed files under review, search for duplicate signatures: same distinctive string literals in 2+ places (`rg -F '…' <changed-files>`); `function \w+A` / `function \w+B` pairs in same PHP file; `json_decode\(` count ≥ 2 in one `*Controller.php`; near-identical CSS selectors differing by one property (`rg` duplicate declaration clusters); copy-pasted `fetch(` + error handling in `assets/**/*.js` |
+| `performance` / `doctrine-queries` | `foreach\s*\(` in changed `*Controller.php`, `src/Service/**`, `*Repository.php` — read each loop body for `->getRepository(`, `->find`, `->findOneBy`, or injected `*Service->get*` / `*Service->find*`; flag per-iteration calls, **`??=` / `array_key_exists` caches that still query inside the loop**, and missing **batch `findBy…In` / plural service method** when distinct per-row keys are collected |
+| `lmap` | `getEntityById\(\w+::class,\s*'[A-Z]` in `src/**/*.php` (PascalCase `$name` instead of lower sentence-case); then **manual / diff pass**: grep `getEntityById\(\w+::class,\s*'[^']+'` in changed PHP — group by entity `::class`; flag when the same class uses **2+ different `$name` literals** in one file |
+| `owasp-disclosure` | `'Invalid request:[^']+'` and `(same-host|untrusted referer|missing referer|CSRF|csrf token)` in `*Controller.php` and `src/Controller/Public/**` (string literals in flash/response copy); `addFlash\([\s\S]{0,200}?(referer|same-host|CSRF|csrf|token|header)` multiline in `*Controller.php`; `logAndFlashError\([^,]+,[^,]+,\s*\$e->getMessage\(\)` in `src/Controller/Public/**`; exception/stack strings in `JsonResponse` / API bodies (`__toString\(\)`, `getTraceAsString`) |
+
+A row match is always at least one finding. **Do not report `searched, no match` for `css-formatting` when `*.css` contains `property:…; property:` on the same line.**
+
+### Diff-context passes (branch/PR reviews — mandatory)
+
+Run these after gathering `git diff <base>...HEAD` (or PR diff). They target regressions grep rows miss.
+
+1. **Migration deployment safety (`pg-schema`)** — For every `migrations/Version*.php` in the diff, run `git diff <base>...HEAD -- <file>`. If the file **already exists on the base branch** and the diff adds/removes `CREATE TABLE` columns, `ALTER TABLE`, FKs, or indexes inside that same version class, flag **in-place migration edit**: environments that already ran that version will not pick up the change. Require a new `Version*.php` unless the team confirms no environment executed the old file.
+2. **GET/POST resolution parity (`single-source-of-truth`, `edge-cases`)** — For each controller with a render/summary action (GET) and a process/submit action (POST) touched in the same feature:
+   - Compare what the GET action computes for display (selected entity, defaults, hidden field values) with what the POST action passes into services for validation.
+   - Flag when POST uses a **narrower** source (e.g. only `getLatestOriginal…()` while GET falls back through cart → original → person).
+   - Flag when GET shows an entity but POST does not apply the same **validity filter** the repository uses elsewhere (`invalidOnDatetime IS NULL`, `deletedAt`, status enums).
+3. **Service vs controller collection coverage (`edge-cases`)** — When a service method loops multiple collections for the same rule (e.g. `getCartItemTrainingTransferContexts()` **and** `getAdditionalTransferComponentContexts()`), search the diff for controller `foreach` blocks that build the same derived value (country codes, "is required" flags, totals) and confirm **every** collection the service checks is included.
+4. **Twig component reuse (`dry`, `simplicity`)** — When the diff adds or changes a `src/Twig/Component/*` tree or introduces `<twig:ComponentName`, grep other changed `.twig` files for the same field labels, `lmap-readonly-label` grids, or repeated entity property output. Flag copy-pasted markup that should call the component. (Subset of pass §6.)
+5. **Loop lookups (`performance`, `doctrine-queries`)** — For every `foreach` / `array_map` added or changed in controllers, services, or repositories:
+   - List repository `find*` / `get*` and service resolver calls inside the loop body.
+   - Flag when **all arguments are identical** every iteration (e.g. same `trainingComponent`, same parent entity) — hoist before the loop.
+   - Flag when arguments vary by a **per-row key** (e.g. moodle outcome string, status enum, foreign id):
+     - Collect **distinct keys** from the collection before the loop.
+     - **Require one batch query** (`WHERE … IN (:keys)`, `findBy…In`, or a plural service method like `get…From…Strings`) before the loop; build a map; loop only indexes the map.
+     - Flag `??=` / `if (!array_key_exists)` caches that still call `findOneBy*` inside the loop — that is one query per distinct key, not batch loading.
+   - Do not assume every loop body needs a per-row query; batch MQ payloads may share one outcome, but code must still handle multiple distinct keys efficiently.
+6. **Repeated code blocks (`dry`, `modularity`, `simplicity`, `css-reuse`)** — On **every** branch/PR review, scan changed files for copy-paste duplication across **PHP, Twig, CSS, JavaScript, and SCSS** (not only controllers):
+   - **Threshold:** flag when **≥5–10 substantially identical lines** appear in two or more places in the same diff (same file or sibling files in the feature), or when only names/ids/selectors differ (`*A`/`*B` methods, `.widget-a`/`.widget-b`, two Twig templates with the same row grid).
+   - **PHP** — parallel methods in one class (MQ decode, entity guards, try/catch preambles); `function fooA` / `function fooB` with identical bodies; duplicated validation in controller + service.
+   - **Twig** — same markup in multiple `.twig` files without `{% include %}`, `{% embed %}`, macro, or `<twig:…>`; new component added while another changed template repeats its layout.
+   - **CSS / SCSS** — near-identical rule blocks (pass § `css-reuse` grep); same declarations with only border-radius/color/class-name differences.
+   - **JavaScript** — duplicated `fetch`/XHR + error handling, jQuery setup, or event-binding blocks across `assets/**` or inline `<script>` in Twig.
+   - **Fix guidance:** extract private method / service (PHP), partial / component / macro (Twig), base + modifier class or custom property (CSS), shared module (JS). Tag **`dry`** for duplication; **`modularity`** when extraction should be a named unit (component, utility module, resolver service); **`css-reuse`** for stylesheet copies.
+   - **Skip** incidental 2–3 line matches (boilerplate imports, single-line guards) unless they encode non-trivial business rules.
+7. **User-facing error verbosity (`owasp-disclosure`)** — In changed `*Controller.php` (especially `src/Controller/Public/**`):
+   - Grep `addFlash`, `getFlashBag()->add`, and `logAndFlashError` for messages that name **security controls** (referer, CSRF, token, header, cookie, session, same-host, origin), **infrastructure** (SQL, PDO, Doctrine, firewall), or **internal flow** (`Invalid request:` followed by a colon and detail).
+   - When multiple actions in the same class guard the same precondition (e.g. `getSafeReferer($request)` → `is_null($referer)`), compare flash strings — flag when one action uses a generic message (`Invalid request`) and another exposes **why** the guard failed.
+   - Detailed diagnostics belong in `logger->warning` / `logError` (with request context), not in flash messages shown to external users.
+8. **`getEntityById` label consistency (`lmap`)** — In every changed PHP file that calls `getEntityById` (controllers, `src/Input/**`, traits):
+   - Grep `getEntityById\(\w+::class,\s*'[^']+'` and group by entity class.
+   - Flag when the same `::class` uses **multiple different `$name` strings** in one file — PascalCase class names, UI or domain slang, synonyms, or any label that does not correspond to the entity `$class`.
+   - Read `DoctrineTrait::getEntityById` — `$name` is interpolated into `Invalid {name}Id` and `No {name} found…`; it must identify the loaded entity, not unrelated user-facing copy from templates or flash messages.
+   - Prefer the label already used by the majority of sibling call sites for that `::class` in the same file (or project-wide when the diff only touches one call).
+
+### Manual review pass (after grep)
+
+Walk **every** file under review for these bullets when grep rows returned no match but the scoped section applies:
+
+- **`symfony-security`** — list every `#[Route]` on mutating methods (`POST`, `PUT`, `PATCH`, `DELETE`); flag any without `#[IsGranted]` or matching `access_control` when sibling routes are protected.
+- **`symfony-validation`** — in controllers, flag `persist`/`flush` that appear **before** `validate(` in the same action.
+- **`php-exceptions` / `api-errors` / `edge-cases`** — flag `if` guards that combine **unrelated** preconditions with `||` or `&&` and `throw` once with a blended message; each independent failure should have its own `if` and distinct message (or machine-readable code).
+- **`single-source-of-truth` / `php-returns` / `edge-cases`** — flag **double-duty variables**: one field encoding both payload and a separate outcome (`markedItems: $ready ? $items : null` while `$ready`/`$doAll…` exists; `null` meaning “not complete” not “no rows”; JS `items: null` vs `[]` vs `undefined` used interchangeably for readiness). Prefer explicit `bool`, enum, or result type; keep payload null only when it duplicates the flag, and document when partial lists must be ignored.
+- **`performance` / `doctrine-queries`** — flag `findAll()` used for counts, grids, or inside loops (including `*Repository.php` helpers like `fetchAllEntitiesForGrid`); flag **repository or service lookups inside `foreach` / `array_map`** when arguments are loop-invariant (hoist before loop) or vary by per-row key — collect distinct keys and **batch-load in one query** before the loop; flag `??=` caches that still query inside the loop instead of using `IN (:keys)` / a plural service method.
+- **`php-naming` / `abstraction` / `js-functions` / `conventions`** — flag function/method names that encode **how** (transport, protocol, queue: `ViaSmtp`, `UsingFetch`, `ThroughMessageQueue`), **where** (system/storage: `ToRedis`, `FromReadReplica`, `IntoS3`), or **why/when** (trigger/context: `OnCheckoutFailure`, `WhenPageLoads`, `AfterSubmit`) instead of the **domain action** (`sendWelcomeEmail`, `fetchActiveUsers`, `cancelOrder`). Grep hints catch common tokens; **manual pass** every new/changed public method in services, producers, controllers, and JS/TS modules. Exception: names where the distinction *is* domain (`expireOnEndOfMonth`, `fetchFromArchive` when archive is a business partition).
+- **`separation-of-concerns` / `symfony-services` / `srp`** — flag classes under `src/Dto/**` that import `EntityManagerInterface` or expose `persistResult`, `persist`, or `flush` methods; move unit-of-work to the application service that builds the result.
+- **`srp` / `modularity`** — flag service classes combining SQL, mail, shell, HTTP, and HTML in one file; flag methods named `validateOr…`, `…And…`, or `…Or…` that both validate **and** create/persist/flush; split into focused commands (validator/factory/orchestrator).
+- **`separation-of-concerns`** — flag `$request->request->remove|set|add|replace` inside `src/Service/**` — request cleanup belongs in the controller or a dedicated input normalizer, not a domain service.
+- **`dry`** — flag copy-pasted methods with only suffix differences (`*A` / `*B` pairs); flag Twig/CSS/JS duplication from the same diff instead of include/component/shared class/shared module; run **Diff-context passes** § repeated code blocks on all changed file types.
+- **`modularity`** — when repeated-block duplication meets the ≥5–10 line threshold, flag missing shared helper, partial, component, utility module, or base stylesheet class.
+- **`simplicity`** — flag large inline Twig/JS blocks that mirror an existing partial or asset line-for-line.
+- **`conventions`** — flag `strlen(` on user-visible text where `mb_strlen` is required (Unicode).
+- **`lmap`** — flag `getEntityById(Entity::class, '…')` when `$name` differs from sibling calls for the same `::class`, uses UI/domain slang instead of the entity label, or passes the PascalCase class name; see **Diff-context passes** § `getEntityById` label consistency.
+- **`encapsulation`** — every `public array $…` **and** `private static array $…` on services/helpers holding domain state; every **`public function` on a service/helper that is only referenced inside the same class** (grep the method name across `src/` — should be `private`).
+- **`php-di`** — every public/protected method with untyped `$param` in `src/`; unused constructor-injected params (`$unused…`, never referenced).
+- **`pg-locking`** — any `preUpdate` / `prePersist` / `onFlush` listener that calls HTTP, mail, or filesystem I/O before the DB transaction completes (tag **`pg-locking`** in addition to `doctrine-lifecycle`).
+- **`owasp-disclosure`** — in controllers (especially `src/Controller/Public/**`), flag `addFlash` / `getFlashBag()->add` messages that reveal **how** a request was rejected (referer/CSRF/token/header checks, same-host rules, session/firewall names) or other implementation details; prefer generic copy (`Invalid request`) with full context logged server-side. Flag `logAndFlashError(…, $e->getMessage(), …)` on public routes when the exception is not explicitly marked `ErrorCode::VISIBLE_TO_EXTERNAL_USER`. Compare sibling actions that share the same guard — inconsistent verbosity is a disclosure smell.
+- **`owasp-defect-management`** — when the tree contains committed secrets, SQL injection, or open `/api` routes, flag if there is no remediation plan (`SECURITY.md`, tracked issues, or explicit acceptance) — a `CODE_REVIEW.md` alone without triage counts as untracked.
+
+| File types | Standard label | Search / flag when you see… |
+|------------|----------------|----------------------------|
+| `src/Dto/**` | `separation-of-concerns` | `EntityManagerInterface` import; `persistResult`, `persist`, or `flush` methods — passive data only; persistence on owning `*Service` |
+| `src/Dto/**` | `symfony-services` | Same as above — DTO namespace must not perform Doctrine unit-of-work |
+| `src/Service/**`, `src/Helper/**` | `encapsulation` | `public array $…`, `public static array $…`, or `private static array $…` holding mutable domain state on services; **`public function get…` / `public function fetch…` only referenced in the same class** (make `private`) |
+| `src/Service/**` | `symfony-services` | `public: true` on application services; custom `*Bundle/` directories under `src/`; **`$request->request->remove|set` inside service methods** |
+| Any PHP | `php-psr` | Body indented with two spaces; `class Foo\n{` on same line inconsistently; missing `declare(strict_types=1)` in `src/` PHP files |
+| Any PHP | `php-input` | Raw `$_GET` / `$_POST` / `$_SESSION`; `json_decode(` without `JSON_THROW_ON_ERROR`; `$request->…->get()` without cast/`filter_var` before persistence; `->query(` / `->exec(` with string-built SQL |
+| Any PHP | `php-exceptions` | `@file_get_contents`, `@trigger_error`, `@` before any expression — **one finding per suppressed call**; **`if` with `||`/`&&` combining unrelated checks that `throw` once** with a blended message — split into separate guards |
+| Any PHP | `php-side-effects` | `echo` / `print` in services, repositories, or listeners; `unset($param[` inside functions (no caller effect); **`$request->request->remove|set|add|replace` in services** (unexpected Request mutation) |
+| Any PHP | `php-naming` | `And`/`Or`/`Then`; bare nouns; **how/where/why tokens** in names (`Via*`, `To*`, `From*`, `On*`, `When*`, `Using*`) — name **what** is done/performed |
+| `src/Service/**`, `*Producer.php`, `*Controller.php` | `abstraction` | Domain-layer public methods leaking transport, storage, queue, or trigger context in the identifier |
+| Any PHP | `php-control-blocks` | Brace-less `if`/`foreach`/`return` (`if ($x) return false;` on one line) |
+| Any PHP | `kiss` | Four or more nested `if` blocks without early return |
+| Any PHP | `simplicity` | One-line `array_reduce` with nested ternaries and multiple `array_map` calls |
+| Any PHP | `edge-cases` | `$arr[0]`, `->first()` without empty guard; entity loaded/accepted for UI or submit without the same validity filter used in repository queries (`invalidOnDatetime`, `deletedAt`, `status`); controller `foreach` missing a collection the paired service checks |
+| Any PHP | `php-returns` | Service methods with `return [` returning multiple string keys (`'rows'`, `'digest'`, `'blob'`, etc.) — use DTOs; **nullable array/object DTO properties used as implicit success flags** when a `bool` or result type should carry the outcome |
+| Any PHP | `php-di` | `new PDO(`, `new \`, or other concrete `new …(` inside service/listener methods instead of constructor injection; `function …($param` without type hints in `src/` |
+| Any PHP | `php-try-catch` | `catch (\Exception`, `catch (\Throwable`, empty `catch` blocks, or catch returning raw `$e` to clients |
+| Any PHP | `php-security` | `unserialize(`; `mail(`; string-built SQL in any class (not only controllers/repos) |
+| Any PHP | `php-datetime` | `86400` seconds-per-day math; mutable `DateTime` (not `DateTimeImmutable`) parameters or return types |
+| Any PHP | `owasp-secure-libraries` | `hash('sha256'`, `hash('md5'`, `md5(`, `base64_encode(md5` on passwords, pins, or session tokens |
+| Any PHP | `twelve-factor-config` | `private const` / `public const` with secret-like names (`PEPPER`, `SECRET`, `PASSWORD`, `API_KEY`) and string literal values |
+| `src/**` PHP | `conventions` | `strlen(` on labels/text (prefer `mb_strlen` for Unicode) |
+| `*Controller.php`, `src/Input/**`, any PHP with `getEntityById` | `lmap` | `getEntityById(Foo::class, '…')` with `$name` inconsistent with other calls for the same `::class` in the file; PascalCase class name as label; UI or domain slang that does not match the loaded entity |
+| Any PHP | `single-source-of-truth` | Same domain state mirrored in `static $…`, `$_SESSION`, and instance properties (e.g. role/permission caches); **nullable DTO/collection field encoding a separate readiness outcome** (`$doAllX ? $items : null`; chained `!is_null($dto) && !is_null($dto->getItems())`) |
+| `*Controller.php` | `separation-of-concerns` | Raw SQL, `new PDO`, `getConnection()->`, or `persist`/`flush` in controller actions |
+| `src/Service/**`, `src/Repository/**` | `separation-of-concerns` | `getEntityManager()->remove`, `->persist`, or `->flush` in service/repository methods that belong in an application service or `wrapInTransaction` unit of work |
+| `*Controller.php` | `php-security` | String-built SQL in controllers: `fetchAllAssociative(`, `executeQuery(`, or quoted interpolation of request data |
+| `*Controller.php` | `symfony-controllers` | `$this->container->get(`, `dump(`, `sleep(`, or multi-step business logic in actions; **duplicate blocks across actions** (decode, guards, error handling) |
+| `*Controller.php`, `src/Service/**` | `dry` | Repeated ≥5–10 line blocks — extract private method, trait, or service |
+| `*.twig`, `src/Twig/Component/**` | `dry` | Copy-pasted markup without `include` / `embed` / macro / `<twig:…>` when a partial or component exists or is added in the same diff |
+| `assets/**/*.js`, inline `<script>` in `.twig` | `dry` | Duplicated fetch/event/DOM setup — extract shared module |
+| `assets/**/*.js`, `*.ts` | `js-functions` | Same **how/where/why** grep hints as PHP; manual pass on `function` / exported handlers — name the domain action |
+| `assets/**/*.js`, `*.ts` | `single-source-of-truth` | `items: cond ? items : null` (or `undefined`) while a sibling `doAll`/`isReady`/`hasAll` flag exists — **double duty**; prefer explicit outcome field |
+| `*.css`, `*.scss` | `css-reuse` | Near-identical rule blocks — shared base class, mixin, or custom property |
+| `*Controller.php` | `symfony-validation` | `->persist(` or `->flush(` before `->validate(` or `$validator->validate(` in the same action |
+| `src/Service/**` | `abstraction` | `new PDO(`, `->query(`, `->exec(`, `exec(`, `mail(`, or filesystem paths built from request input at call sites — **all** service classes, not only `*Service.php` |
+| `src/Service/**` | `performance` | `findAll()` for dashboards, counts, or exports without pagination; **identical or per-key `find*` / resolver calls inside `foreach` without hoist or batch `IN` load before loop** |
+| `*Controller.php` | `performance` | Same as services — **entity resolution inside `foreach` over request rows** when parent context is loop-invariant or per-row keys should be batch-loaded once (`get…From…Strings`, `findBy…In`) |
+| `*Repository.php` | `php-security` | String concatenation or `"…$var…"` inside SQL passed to `fetch*` / `executeQuery` |
+| `*Repository.php` | `pg-data-access` | `FOR UPDATE` on queue/job dequeue without `SKIP LOCKED`; `GRANT ALL` in migrations |
+| `*Repository.php` | `pg-pagination` | `setFirstResult(` / deep `OFFSET` pagination |
+| `*Repository.php` | `performance` | `findAll()` / `getResult()` without `setMaxResults` on list/grid helpers |
+| Entities `src/Entity/**` | `doctrine-associations` | `inversedBy` on both sides when only one traversal direction is used; FK scalar field plus `ManyToOne` on same column; composite `#[ORM\Id]` |
+| Entities `src/Entity/**` | `doctrine-collections` | `Collection $…` without `new ArrayCollection()` in `__construct()`; `cascade:` including `merge` or `detach` |
+| Entities `src/Entity/**` | `doctrine-naming` | `#[ORM\Table(name: '"…"')]` quoted reserved words; PascalCase / mixed-case table names (`TenantMembership`) |
+| Repositories / services / listeners | `doctrine-lifecycle` | Multiple `flush()` calls in one business method without `wrapInTransaction()`; HTTP in `preUpdate` / `prePersist` listeners |
+| `*Listener.php`, `*Subscriber.php` | `pg-locking` | `httpClient->request`, `HttpClientInterface`, `file_get_contents`, `mail(`, or `sleep(` inside `preUpdate` / `prePersist` / `onFlush` — transaction held during external I/O |
+| Repositories / controllers | `doctrine-queries` | `foreach (` … `findAll()` or lazy association access in loops without fetch join |
+| `security.yaml` + controllers | `symfony-security` | No `access_control` for `/api`, `/internal`, admin paths; mutating `#[Route]` without `#[IsGranted]`; complex inline `#[IsGranted("is_granted(…")]` strings |
+| `phpunit*.xml` | `symfony-deprecations` | `failOnDeprecation="false"`; `ignoreIndirectDeprecations="true"`; `ignoreSuppressionOfDeprecations="true"`; missing `deprecationTrigger` for Symfony/Doctrine |
+| `config/*.yaml`, `services.yaml` | `twelve-factor-config` | `sk_live_`, `mysql://`, `postgresql://` with embedded passwords in `parameters:` |
+| `config/services.yaml` | `symfony-services` | `public: true` on application services; custom `*Bundle/` directories under `src/` |
+| `config/*`, `*.env*` | `owasp-source-control` | Tracked `*secrets*`, `.env`, or config files with `PRIVATE KEY`, live API keys, or DSN passwords |
+| `compose*.yaml` | `owasp-secure-deploy` | Literal `DATABASE_URL:` / passwords in `environment:` blocks (not `${VAR}` references) |
+| `Dockerfile*` | `owasp-secure-build` | `ENV` / `ARG` lines setting API keys, DB passwords, or signing secrets |
+| `composer.json`, CI | `owasp-dependencies` | `composer.lock` present but no `composer audit` in scripts or CI |
+| `migrations/*.php` | `pg-schema` | Mixed-case quoted identifiers (`"InvoiceLedger"`); UUID v4 `PRIMARY KEY`; B-tree index on `JSONB` columns; **in-place edit** of an existing `Version*.php` on the base branch (see **Diff-context passes** § migration deployment safety) |
+| `migrations/*.php` | `pg-query-indexes` | `FOREIGN KEY` / `REFERENCES` added without a matching `CREATE INDEX` on the referencing column in the same migration |
+| `migrations/*.php` | `pg-advanced` | `LIKE '%` in repository SQL; `CREATE INDEX … ON … (metadata)` on JSONB without `USING GIN` |
+| `src/Form/**` | `symfony-forms` | `SubmitType::class` in form classes; field-level `constraints:` arrays instead of entity/DTO constraints |
+| `translations/**` | `symfony-i18n` | Translation files ending in `.yaml` / `.yml` instead of `.xlf` |
+| Any `.twig` | `symfony-i18n` | `{% trans %}…{% endtrans %}` wrapping English prose or "Click here" instead of purpose-based keys (`{% trans %}nav.contact{% endtrans %}`) |
+| `*.html.twig` (pages, not `_` partials) | `symfony-templates` | No `{% extends %}` on page templates; PascalCase paths (`ProductTile`); `style="…"`; visible literal copy in tags without `{% trans %}` |
+| `base.html.twig`, layouts | `symfony-assets` | Manual `<script src="/assets/…">` or `/build/…` plus `importmap()` in the same template; duplicate jQuery CDN tags |
+| `base.html.twig`, layouts | `jquery-loading` | Multiple jQuery `<script>` versions on one page; protocol-relative `//cdn` jQuery URLs without local fallback |
+| Any `.twig` tree | `html-composition` | Partials with `<!DOCTYPE html>` / `<html>` / `<body>`; `include(…, with_context = true)` without `only`; duplicate `<h1>` or `<main>` after merging includes |
+| Any `.twig` | `html-document` | Legacy `<!DOCTYPE html PUBLIC`; `<base href`; explicit `<link rel="icon"`; `lang="en-US"` (prefer short `lang`); `type="text/javascript"` / `type="text/css"` on tags; `//` protocol-relative CDN URLs |
+| Any `.twig` | `html-markup` | Uppercase HTML tags (`<DIV>`, `<TABLE>`, `<IMG>`); unquoted attributes (`border=1`) |
+| Any `.twig` | `html-semantics` | `<center>`, `<font`, `<hgroup>`, `<br><br>` spacing, presentational `<i>`/`<u>`/`<s>` |
+| Any `.twig` | `html-links` | `href="contact"` or other relative paths without leading `/` when `<base>` is absent; `{% trans %}Click here{% endtrans %}`; `<time>` without `datetime=`; `<abbr` without `title=` |
+| Any `.twig` | `html-forms` | `placeholder="` as sole label (no `<label>`); `<legend>` not first in `<fieldset>`; `<button type="submit">` outside `<form>` |
+| Any `.twig` | `html-embedded` | `<img` / `<IMG` without `alt=`; `<picture>` blocks without fallback `<img>`; non-empty `<iframe>` body |
+| Any `.twig` | `html-escaping` | `\|raw` on variables; HTML built in PHP services (`'<section>' . $bio`) |
+| Any `.twig` | `twig-style` | Missing spaces around operators (`orderTotal=`, `==true`, `demo_flag==`); cramped `{% for %}…{% endfor %}` on one line |
+| Any `.twig` | `twig-naming` | camelCase Twig variables (`camelCaseValue`, `productTitle`) |
+| Any `.twig` | `js-dom` | Inline `<script>` with `function …(` or `onclick` handlers in templates (not only `assets/*.js`) |
+| `*.css`, linked stylesheets | `html-a11y` | `outline: none` / `outline:none` on `:focus` without a visible `:focus-visible` replacement |
+| `*.css` | `css-consistency` | Mixed `#hex` and `rgb()` color notation in the same file |
+| `*.css` | `css-comments` | Missing `/* \|\| … */` section markers between logical groups |
+| `*.css` | `css-structure` | Element defaults (`body`) mixed after component rules; no general → utility → layout ordering |
+| `*.css` | `css-tokens` | Repeated hard-coded colors (`#3b82f6`, `#ddd`) instead of custom properties |
+| `assets/*.js` | `js-functions` | Object literal methods as arrow functions (`bump: () => { this.… }`); functions named like nouns (`user`) |
+| `assets/*.js` | `js-control-flow` | Redundant `else` after `return`; `for (var` index loops where `for…of` fits |
+| `assets/*.js` | `js-operators` | `for (var x in array)` on arrays; `value == null` on undeclared identifiers; `+value` / `'' + value` coercion |
+| `assets/*.js` | `js-async` | Raw `.then(` chains where `async`/`await` would simplify; fetch without error handling |
+| `assets/*.js` | `js-dom` | `.innerHTML =`; `new XMLHttpRequest`; `setAttribute('onclick'` |
+| `assets/*.js` | `js-mutation` | In-place mutation of function parameters (`input[j].… =` inside loops) |
+| `assets/*.js` | `js-errors` | Empty `catch` blocks (`catch (e) { }` or `catch (e) {\n}`) |
+| `assets/*.js` | `js-comments` | `console.log` outside test-only files |
+| jQuery `.js` | `jquery-scoping` | Top-level `$` / `jQuery` usage without wrapping IIFE `(function ($, window, document) { … })(jQuery, window, document)` |
+| jQuery `.js` | `jquery-selectors` | `$('#sidebar div#drawer')`; repeated `$('#same')` calls; long descendant chains (`body div.wrapper section…`) |
+| jQuery `.js` | `jquery-empty` | `.fadeIn()` / `.slideDown()` / `.show()` without `.length` check |
+| jQuery `.js` | `jquery-events` | `$('#table tr').each(function () { $(this).on('click', …) })` instead of delegation on parent; `.on('submit', …)` callback that calls `.on(` / `.off(` on fields (rebinds listeners every submit — bind once on `ready` or delegate) |
+| jQuery `.js` | `jquery-api` | Chained `.attr('a',…).attr('b',…)` instead of object literal |
+| `*.css` | `css-selectors` | Long compound selectors (`article.foo section.bar p.baz`) |
+| `*.css` | `css-formatting` | Multiple declarations on one line inside a rule block — grep `;\s+[a-z-]+\s*:` (e.g. `.hero { background:#000; color: #fff; }`) |
+| `*.css` | `css-methodology` | Mixed block naming in one file (e.g. `.Panel` + `.panel__title` BEM in the same stylesheet) |
+| `*.css` | `css-build` | Comments admitting uncompiled Sass or unminified CSS shipped to production |
+| `*.css` | `css-reuse` | Near-duplicate rule blocks (e.g. `.widget-a` / `.widget-b` differing only in border-radius) |
+| API controllers | `api-rest` | `/api/mysql/…`, camelCase action segments (`applyPatch`), RPC verb paths; `findAll()` list endpoints without pagination; `methods: ['DELETE']` actions returning `JsonResponse` instead of `Response::HTTP_NO_CONTENT` |
+| API controllers | `api-errors` | HTTP 200 with `success: false`, raw exception strings (`$e->__toString()`), unstructured `{ error: … }` bodies, or **one thrown message covering multiple independent validation failures** (`"not commenced or withdrawn"`) |
+| `src/Service/**` | `dead-code` | Constructor params never referenced (`$unused…`, `$…Again`); `@trigger_error` without `trigger_deprecation()` |
+| `src/**` PHP | `twelve-factor-logs` | `dump(`, `var_dump(` in `src/` (including controllers) |
+| `*Controller.php` | `twelve-factor-ops` | `sleep(`, maintenance/reindex logic in web controllers instead of `bin/console` commands |
+| `src/Service/**` | `twelve-factor-stateless` | `$_SESSION[` usage in services for durable domain state |
+| Tests | `symfony-controllers` | Functional test only asserts `assertResponseIsSuccessful()` without behavior/security checks |
+| `*Controller.php`, `src/Controller/Public/**` | `owasp-disclosure` | `addFlash` / `getFlashBag()->add` naming security controls or internals (`referer`, `same-host`, `CSRF`, `token`, `header`, `Invalid request: …` with detail); `logAndFlashError(…, $e->getMessage(), …)` on public routes without `ErrorCode::VISIBLE_TO_EXTERNAL_USER`; sibling actions with the same guard (`getSafeReferer`, CSRF) but mismatched flash verbosity |
+| API controllers | `owasp-disclosure` | Exception messages, stack traces, or `__toString()` / `getTraceAsString()` returned in API JSON bodies |

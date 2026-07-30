@@ -1,0 +1,16 @@
+---
+description: Security standards — OWASP secure SDLC, source control, dependencies, libraries, build, error disclosure.
+alwaysApply: false
+---
+
+## Security ([OWASP Implementation](https://devguide.owasp.org/en/05-implementation/))
+
+> **Examples:** `../examples/security.md`
+
+Follow a secure development lifecycle — build security in during implementation, not as a late add-on ([SAMM Implementation](https://owaspsamm.org/model/implementation/)).
+
+- **Secure source control:** Never commit secrets, credentials, private keys, or `.env` files; use `.gitignore` and pre-commit checks.
+- **Dependencies:** Declare dependencies explicitly with lockfiles (`composer.lock`, `package-lock.json`); pin versions and scan for known CVEs (e.g. `composer audit`, `npm audit`). Remove unused packages; prefer actively maintained libraries. Flag repos with a lockfile but no `composer audit` / `npm audit` in CI scripts or `composer.json` `scripts`.
+- **Secure libraries:** Use framework security primitives (Symfony Security, `password_hash()`, Doctrine parameter binding, Twig auto-escaping) instead of custom crypto, auth, or encoding.
+- **Secure build:** Document and automate the build process; keep it reproducible. Never embed secrets in Dockerfiles, Makefiles, or CI/CD YAML. Run dependency audits (`composer audit`, `npm audit`) and static analysis in CI where practical.
+- **Error disclosure:** Do not expose sensitive information, internal implementation details, security-control names (referer, CSRF, token, header checks), or raw stack traces in production user-facing flash messages, HTML, or APIs. Log diagnostics server-side; show generic copy to external users.

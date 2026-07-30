@@ -1,0 +1,192 @@
+/**
+ * CSS — Rule Examples (coding-standards.mdc)
+ * Each block: RULE, WHY, WHY NOT, DON'T DO, PREFER
+ */
+
+/* =============================================================================
+ * RULE: Follow project style guide / methodology consistently
+ * WHY: One convention per codebase beats personal preference wars in review.
+ * WHY NOT: Mixed BEM + random IDs + inline hex duplicates force grep archaeology.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.Card { padding: 1rem; }
+.card__title { font-size: 1.2rem; }
+#cardTitle { color: #333; }
+
+/* --- PREFER (pick one system and stick to it) --- */
+.card { padding: 1rem; }
+.card__title { font-size: 1.2rem; color: var(--color-text); }
+
+/* =============================================================================
+ * RULE: Consistent indentation and color notation
+ * WHY: Uniform formatting makes diffs about behavior, not whitespace debates.
+ * WHY NOT: `#fff` next to `rgb(255,255,255)` next to `white` obscures token reuse.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.hero { background:#1a1a1a; color: rgb(255, 255, 255); }
+
+/* --- PREFER --- */
+.hero {
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+/* =============================================================================
+ * RULE: One declaration per line inside rule blocks
+ * WHY: Line-level blame and merges stay clean.
+ * WHY NOT: One-line rules hide in side-by-side diffs and wrap unpredictably.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.btn { display: inline-block; padding: 0.5rem 1rem; border: 0; }
+
+/* --- PREFER --- */
+.btn {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  border: 0;
+}
+
+/* =============================================================================
+ * RULE: Section comments with searchable marker (/* || … * /)
+ * WHY: Jump-to-section in large files speeds navigation.
+ * WHY NOT: Unmarked 2000-line sheets become write-only files.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+/* buttons */
+.btn-primary { }
+
+/* --- PREFER --- */
+/* || Components — buttons */
+.btn-primary { }
+
+/* =============================================================================
+ * RULE: Comment non-obvious decisions (fallbacks, workarounds)
+ * WHY: Future you needs the spec link when the hack stops working.
+ * WHY NOT: Obvious `color: red` comments add noise without context.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+/* red text */
+.error { color: red; }
+
+/* --- PREFER --- */
+/* Fallback when color-mix() unsupported — see https://caniuse.com/css-color-mix */
+.error {
+  color: #c00;
+  color: color-mix(in srgb, var(--color-danger) 90%, black);
+}
+
+/* =============================================================================
+ * RULE: Order rules — elements → utilities → layout → page/component
+ * WHY: Predictable cascade order reduces override surprises.
+ * WHY NOT: Page rules before base resets fight specificity wars.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.checkout-summary { margin-top: 2rem; }
+body { margin: 0; }
+.u-hidden { display: none !important; }
+
+/* --- PREFER --- */
+/* || Base */
+body { margin: 0; }
+/* || Utilities */
+.u-hidden { display: none !important; }
+/* || Pages */
+.checkout-summary { margin-top: 2rem; }
+
+/* =============================================================================
+ * RULE: Class selectors over long compound selectors
+ * WHY: Low specificity enables reuse and theme overrides.
+ * WHY NOT: `article.main p.box` duplicates when the same box appears elsewhere.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+article.product-detail section.content p.price { font-weight: 700; }
+
+/* --- PREFER --- */
+.product-price { font-weight: 700; }
+
+/* =============================================================================
+ * RULE: Split large stylesheets by concern
+ * WHY: Smaller files reduce merge conflicts and load only what's needed.
+ * WHY NOT: Monolithic `styles.css` loads unused rules on every page.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+/* 4000 lines: admin + marketing + print in one file */
+
+/* --- PREFER --- */
+/* base.css, layout.css, components/button.css, pages/checkout.css */
+
+/* =============================================================================
+ * RULE: Reusable classes (OOCSS) instead of near-identical copies
+ * WHY: One definition updates all variants.
+ * WHY NOT: `.card-a`, `.card-b` with 95% duplicate declarations drift apart.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.widget-a { padding: 1rem; border: 1px solid #ddd; border-radius: 4px; }
+.widget-b { padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+
+/* --- PREFER --- */
+.media-box { padding: 1rem; border: 1px solid var(--color-border); }
+.media-box--rounded-sm { border-radius: 4px; }
+.media-box--rounded-lg { border-radius: 8px; }
+
+/* =============================================================================
+ * RULE: Follow BEM/SMACSS/ITCSS when project adopts a methodology
+ * WHY: Shared vocabulary across designers and engineers.
+ * WHY NOT: `block_element-modifier` mixed with random utility classes confuses ownership.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.cardHeader_active { }
+
+/* --- PREFER --- */
+.card__header--active { }
+
+/* =============================================================================
+ * RULE: Design tokens in custom properties or Sass variables
+ * WHY: Rebrand changes one `:root` block, not 200 hex greps.
+ * WHY NOT: Hard-coded `#3b82f6` scattered everywhere misses dark-mode variants.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+.link { color: #3b82f6; }
+.button { background: #3b82f6; }
+
+/* --- PREFER --- */
+:root {
+  --color-primary: #3b82f6;
+}
+.link { color: var(--color-primary); }
+.button { background: var(--color-primary); }
+
+/* =============================================================================
+ * RULE: Ship compiled CSS in production; Sass @use for composition
+ * WHY: Browsers don't understand .scss; partials keep sources modular.
+ * WHY NOT: Committing raw SCSS to CDN without build step breaks in production.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+/* Deploy styles.scss directly to public/ */
+
+/* --- PREFER --- */
+/* styles.scss → @use 'tokens'; @use 'components/button'; → build → app.min.css */
+
+/* =============================================================================
+ * RULE: Post-process production bundles (e.g. cssnano)
+ * WHY: Smaller payloads; comments stay in source, not on the wire.
+ * WHY NOT: Shipping dev CSS with comments and whitespace wastes bandwidth.
+ * ============================================================================= */
+
+/* --- DON'T DO --- */
+/* 120KB unminified app.css served to users */
+
+/* --- PREFER --- */
+/* vite build / encore production → app.[hash].css with cssnano */

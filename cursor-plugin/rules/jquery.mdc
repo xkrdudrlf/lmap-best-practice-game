@@ -1,0 +1,20 @@
+---
+description: jQuery standards — loading, scoping, selectors, empty checks, event delegation, API usage.
+alwaysApply: false
+---
+
+## jQuery ([jQuery coding standards](https://gist.github.com/mpatel3/9707f274515ac5fa472c145d21d666fd))
+
+> **Examples:** `../examples/jquery.js`
+
+- Load jQuery from a CDN with a local fallback; never load multiple jQuery versions on one page.
+- Wrap application code in an IIFE scoped to `(window.jQuery, window, document)` so `$` is local and globals stay clean.
+- Cache selector results in variables (prefix with `$`, e.g. `$list`) or chain methods; avoid repeating the same selector.
+- Prefer `#id` selectors; scope searches with `.find()` from a cached parent instead of long descendant chains (`$('#container').find('.item')`, not `$('#container ul.list .item'` when a shorter path works).
+- Provide selector context to limit DOM traversal (`$('.item', '#container')` instead of `$('.item')` when the scope is known).
+- Never nest or qualify IDs (`$('#outer #inner')`, `$('div#inner')`); IDs are unique — select with `$('#inner')` alone.
+- Avoid excessive selector specificity — prefer the shallowest selector that reliably targets the element.
+- Check `.length` before animating or acting on a selection that may be empty.
+- Use event delegation on a stable parent (`$parent.on('click', 'a', handler)`) for dynamic or many child elements instead of binding each descendant.
+- Bind named handler functions — not anonymous callbacks — for debuggability, testability, and reuse.
+- Pass object literals to multi-attribute setters (e.g. `$el.attr({ href: '#', title: '...' })`) instead of chaining repeated setter calls.

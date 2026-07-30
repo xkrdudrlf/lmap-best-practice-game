@@ -1,0 +1,92 @@
+---
+description: HTML in Twig templates — document shell, composition, markup, semantics, forms, embedded content, escaping.
+alwaysApply: false
+---
+
+## HTML in Twig templates ([HTML Best Practices](https://github.com/hail2u/html-best-practices) + [Twig template inheritance](https://twig.symfony.com/doc/3.x/templates.html#template-inheritance))
+
+> **Examples:** `../examples/html-twig/document-shell.html.twig`, `../examples/html-twig/composition-and-semantics.html.twig`
+
+Apply these rules to every Twig template that outputs HTML. When templates `{% include %}`, `{% embed %}`, or `{% extends %}`, review the **combined rendered page** — not each file in isolation. For i18n, Bootstrap styling, and template naming, see **Symfony** (`symfony.mdc`).
+
+### Document shell (base layouts only)
+
+- Start with `<!DOCTYPE html>` — no legacy DTD, no XML declaration.
+- Put `<html lang="…">`, `<head>`, and `<body>` only in base layout templates — never in included or embedded partials.
+- Set `lang` from the active locale; keep the value short (`en`, `ja` — not `en-US` unless a region distinction is required).
+- In `<head>`: `<meta charset="UTF-8">` first, then viewport, then `<title>`; use UTF-8 throughout.
+- Include exactly one `<main>` per composed page; define it in the layout or top-level child template, not in reusable fragments.
+- Do not use `<base>`; prefer absolute paths for internal links (`/contact`, not `contact`).
+- Do not add an explicit `<link rel="icon" href="/favicon.ico">` — browsers fetch it automatically.
+- Omit `type` on `<style>` and `<script>`; do not wrap their contents in HTML comments or CDATA.
+- Load stylesheets before scripts when both appear in `<head>`; use `https://` URLs for external resources (not protocol-relative `//`).
+
+### Template composition (`extends`, `include`, `embed`)
+
+- Use `{% extends %}` + `{% block %}` for page layouts; child templates override blocks — they do not duplicate the outer document.
+- Use `{% include %}` for self-contained fragments (cards, rows, form fields) with no block overrides inside the partial.
+- Use `{% embed %}` when a partial defines a reusable shell with overridable regions (`{% block %}` inside the embedded template).
+- Prefix partial templates with `_`; keep each partial focused on one UI concern.
+- Pass only needed variables: `{% include '_card.html.twig' with { title: product.name } only %}` — prefer `only` to avoid leaking parent scope.
+- Macros are for repeated markup with parameters — not page layout; prefer includes/embeds for multi-line components.
+- Ensure the merged output has no duplicate landmarks (`<main>`, `<nav>`, `<header>`), no second `<h1>`, and no repeated `id` values.
+- Parameterize or omit `id` in partials used more than once; generate unique IDs in the parent when needed (`id="field-{{ field_name }}"`).
+
+### Markup consistency
+
+- Use lowercase tag and attribute names — flag uppercase legacy tags (`<DIV>`, `<TABLE>`, `<TD>`, `<STRONG>`); double-quote all attribute values; one space between attributes — no extra spaces around `=` or inside values.
+- Close all non-void elements; use HTML5 void-element form consistently (`<hr>`, not `<hr />`).
+- Omit boolean attribute values (`disabled`, `required`, `autoplay` — not `disabled="disabled"`).
+- Use kebab-case for `id` and `class`, camelCase for `name`.
+- Put common attributes first; group `data-*`, Microdata, and RDFa attributes after them on the same tag.
+- Prefer UTF-8 characters in source over character references; Twig auto-escapes dynamic output — for literal `&`, `<`, `>`, `"`, `'` in static markup, use named references (`&amp;`, `&quot;`).
+- Put spaces inside HTML comments (`<!-- comment -->`, not `<!--comment-->`).
+- Write one `<li>`, `<td>`, and `<option>` per line for readability.
+- Indent HTML consistently across layout, blocks, and partials.
+
+### Structure and semantics
+
+- Prefer semantic elements (`<header>`, `<nav>`, `<main>`, `<footer>`, `<article>`, `<section>`) over unlabeled `<div>` stacks; treat `<div>` and `<span>` as last resort.
+- Keep a logical heading hierarchy (`h1` → `h2` → `h3`) across layout and all included blocks; do not skip levels for styling.
+- Reserve one `<h1>` per composed page; partials start at `h2` or lower unless they are the sole content region.
+- Do not use `<hgroup>`; use `<p>` or similar for subtitles.
+- Use `<address>` only for contact information.
+- Wrap `<blockquote>` content in block elements; put attribution outside the quote or in `<figcaption>` within `<figure>`.
+- Place `<figcaption>` as the first or last child of `<figure>`.
+- Do not use `<dl>` for dialogue.
+- Use native interactive elements — `<button>` for actions, `<a href="…">` for navigation, `<table>` for tabular data.
+- Avoid presentational elements (`<b>`, `<i>`, `<u>`, `<s>`, `<font>`, `<center>`); prefer Bootstrap utilities or semantic `<em>` / `<strong>`.
+- Do not use `<br>` for layout spacing; separate block-level elements instead.
+- Do not remove focus outlines without an equivalent visible focus style.
+
+### Links and text
+
+- Use descriptive link text — not "click here".
+- Group related heading and paragraph content under one `<a>` when they share the same destination.
+- Add `rel`, `hreflang`, and `type` on links when they help applications handle the resource.
+- Use `download` when a link should force a file download.
+- Add `datetime` on `<time>` when the element text is not machine-readable.
+- Add `title` on `<abbr>` for expansions.
+
+### Forms
+
+- Wrap every control in `<label>`; prefer wrapping the input over a separate `for`/`id` pair when practical.
+- Do not use `placeholder` as the only label — pair it with a visible `<label>`.
+- Use the most specific `input type` (`search`, `email`, `url`, etc.).
+- Set explicit `value` on `<input type="submit">` and use `button type="submit"` only inside forms; use `type="button"` for non-submit actions.
+- Add `title` on inputs with a `pattern` attribute so validation hints are visible.
+- Place `<legend>` as the first child of `<fieldset>`.
+- Include CSRF tokens on every state-changing form (`form_start()` or `{{ csrf_token('…') }}`).
+
+### Embedded content and tables
+
+- Add meaningful `alt` on `<img>`; use `alt=""` when the image is decorative and equivalent text exists nearby.
+- Provide a fallback `<img>` inside `<picture>`; set `width` and `height` (or CSS aspect-ratio) to limit layout shift; use `loading="lazy"` below the fold.
+- Keep `<iframe>` elements empty.
+- Use `<th>` for header cells (not `<td>` with `<strong>`); add `<caption>` when a table title helps context; use `scope` on `<th>` when appropriate.
+
+### Output safety
+
+- Rely on Twig auto-escaping for HTML body content; do not disable escaping globally.
+- Use `|e('html_attr')` (or the `attr` filter) for dynamic attribute values — never concatenate unescaped variables into attributes.
+- Avoid `|raw` unless content is trusted and sanitized server-side; never pipe user input through `|raw`.

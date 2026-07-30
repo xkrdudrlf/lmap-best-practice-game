@@ -1,0 +1,136 @@
+{# HTML in Twig — Composition, markup, semantics, forms, safety #}
+
+{# =============================================================================
+   RULE: extends for layouts; include for fragments; embed for overridable shells
+   WHY: Right primitive prevents block leakage and duplicate document structure.
+   WHY NOT: include layout partials with {% block %} inside confuses override order.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# page.html.twig includes base.html.twig and tries to override blocks #}
+
+{# --- PREFER --- #}
+{# {% extends 'base.html.twig' %} #}
+{# {% include '_order_row.html.twig' with { order: order } only %} #}
+
+{# =============================================================================
+   RULE: Pass only needed variables with `only`; prefix partials with _
+   WHY: `only` stops accidental parent scope leaks; _ signals non-page template.
+   WHY NOT: Partial reads `app.user` from parent scope — untestable and fragile.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {% include 'card.html.twig' %}  {# inherits entire parent context #} #}
+
+{# --- PREFER --- #}
+{% include '_card.html.twig' with { title: product.name, body: product.summary } only %}
+
+{# =============================================================================
+   RULE: Lowercase tags/attrs; double quotes; omit boolean values; kebab-case id/class
+   WHY: HTML5 consistency; Twig auto-escape works predictably on attributes.
+   WHY NOT: disabled="disabled" is XML-ism; mixed quoting fails validators.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <DIV class=Card disabled="disabled"> #}
+
+{# --- PREFER --- #}
+<div class="card" disabled>
+
+{# =============================================================================
+   RULE: Semantic elements; one h1 per page; logical heading hierarchy
+   WHY: Screen readers and SEO use landmarks and heading outline.
+   WHY NOT: <div class="header"> stack with skipped h1→h4 breaks navigation.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <div class="nav"><div class="link">Home</div></div> #}
+{# <h4>Page title</h4>  {# first heading on page, skipped levels #} #}
+
+{# --- PREFER --- #}
+<nav aria-label="{% trans %}nav.main{% endtrans %}">
+  <a href="/">{% trans %}nav.home{% endtrans %}</a>
+</nav>
+<h1>{% trans %}page.dashboard.title{% endtrans %}</h1>
+
+{# =============================================================================
+   RULE: Reuse Twig components — do not copy the same field grid into another template
+   WHY: One component update fixes every screen; duplicated markup drifts.
+   WHY NOT: RegistrationAccordion and EmergencyContactCard showing the same columns need two edits.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# registration_summary.html.twig — 50 lines of Name / Email / Phone readonly rows #}
+{# emergency_contact_card.html.twig — same rows in a component added the same PR #}
+
+{# --- PREFER --- #}
+<twig:EmergencyContactCard :emergencyContact="emergencyContact" />
+
+{# =============================================================================
+   RULE: Descriptive link text; datetime on time; title on abbr
+   WHY: "Click here" out of context is meaningless in screen reader link lists.
+   WHY NOT: Missing datetime loses machine-readable dates for calendars/search.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <a href="/report">{% trans %}link.click_here{% endtrans %}</a> #}
+{# <time>Jan 5</time> #}
+
+{# --- PREFER --- #}
+<a href="/report">{% trans %}link.view_q4_report{% endtrans %}</a>
+<time datetime="2026-01-05">{% trans %}date.jan_5{% endtrans %}</time>
+<abbr title="{% trans %}abbr.api.title{% endtrans %}">{% trans %}abbr.api.short{% endtrans %}</abbr>
+
+{# =============================================================================
+   RULE: Label every control; CSRF on state-changing forms; no placeholder-only labels
+   WHY: WCAG requires names; CSRF stops cross-site posting; placeholders vanish on type.
+   WHY NOT: Missing csrf_token enables login CSRF and state-changing attacks.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <input type="email" name="email" placeholder="Email"> #}
+
+{# --- PREFER --- #}
+<form method="post" action="{{ path('profile_update') }}">
+  <input type="hidden" name="_token" value="{{ csrf_token('profile_update') }}">
+  <label>
+    {% trans %}label.email{% endtrans %}
+    <input type="email" name="email" autocomplete="email" required>
+  </label>
+  <button type="submit" class="btn btn-primary">{% trans %}action.save{% endtrans %}</button>
+</form>
+
+{# =============================================================================
+   RULE: Meaningful alt; picture with fallback img; th for headers; empty iframe
+   WHY: Images without alt fail a11y; picture without img breaks old browsers.
+   WHY NOT: <td><strong>Header</strong></td> loses header semantics for AT.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <img src="{{ asset('hero.jpg') }}"> #}
+{# <iframe>Legacy content</iframe> #}
+
+{# --- PREFER --- #}
+<img src="{{ asset('images/hero.jpg') }}" alt="{% trans %}image.hero.alt{% endtrans %}" width="1200" height="600" loading="lazy">
+<table>
+  <caption>{% trans %}table.orders.caption{% endtrans %}</caption>
+  <thead>
+    <tr>
+      <th scope="col">{% trans %}column.order_id{% endtrans %}</th>
+    </tr>
+  </thead>
+</table>
+
+{# =============================================================================
+   RULE: Twig auto-escape; |e('html_attr') for attributes; never |raw on user input
+   WHY: Default escaping blocks XSS; attributes need dedicated escaping context.
+   WHY NOT: {{ user_bio|raw }} stores script tags that execute for every viewer.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <div>{{ user.bio|raw }}</div> #}
+{# <a class="{{ user_class }}">  {# unescaped class from user #} #}
+
+{# --- PREFER --- #}
+<div>{{ user.bio }}</div>
+<a class="{{ user_class|e('html_attr') }}">

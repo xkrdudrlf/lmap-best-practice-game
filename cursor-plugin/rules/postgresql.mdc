@@ -1,0 +1,50 @@
+---
+description: PostgreSQL standards — indexes, schema, transactions, pagination, data access, advanced features.
+alwaysApply: false
+---
+
+## PostgreSQL ([Supabase Postgres Best Practices](https://github.com/supabase/agent-skills/tree/main/skills/supabase-postgres-best-practices/references))
+
+> **Examples:** `../examples/postgresql.sql`
+
+Schema and indexes are managed through Doctrine migrations — apply these rules when defining entities, `#[ORM\Index]`, and migration SQL.
+
+### Query performance
+
+- Index columns used in `WHERE`, `JOIN`, and `ORDER BY` on large tables; unindexed filters cause sequential scans that degrade as tables grow.
+- Always index foreign-key columns — Postgres does not index them automatically; add indexes in migrations for `#[ORM\ManyToOne]` / `#[ORM\OneToMany]` join columns.
+- Use composite indexes for multi-column filters; place equality columns first, then range columns (leftmost-prefix rule).
+- Use partial indexes when queries consistently filter on the same condition (e.g. `WHERE deleted_at IS NULL`, `WHERE status = 'pending'`).
+- Use covering indexes (`INCLUDE`) when a query selects columns beyond the filter key — enables index-only scans.
+- Choose the right index type: B-tree (default equality/range), GIN (JSONB, arrays, full-text), GiST (geometry, ranges), BRIN (large time-series).
+
+### Schema design
+
+- Use lowercase `snake_case` for tables and columns — match Doctrine's default naming strategy.
+- Prefer `bigint` auto-increment (`#[ORM\GeneratedValue]`) for primary keys; avoid random UUID v4 as PKs on large tables (index fragmentation).
+- Choose appropriate column types: `bigint` for IDs, `text` over `varchar(n)` unless a length constraint is required, `datetimetz_immutable` / `timestamptz` for timestamps, `decimal` for money, `boolean` for flags.
+- Enforce data integrity with `NOT NULL`, `UNIQUE`, `CHECK`, and foreign-key constraints — express via Doctrine attributes and migration `up()`/`down()`.
+- **Never edit a migration that may already have run** — Doctrine records executed versions in `doctrine_migration_versions`; changing an existing `Version*.php` (adding columns to `CREATE TABLE`, new FKs/indexes, or `ALTER` hunks) does **not** re-apply on environments that ran the old file. Add a **new** migration for deployed schema changes; squash in-place only when no environment has executed the prior version (e.g. still on a single unreleased feature branch).
+
+### Transactions and concurrency
+
+- Keep `EntityManager` transactions short — perform external API calls and validation before `wrapInTransaction()` / `flush()`; do not hold DB locks across I/O.
+- Acquire row locks in a consistent order across concurrent updates to prevent deadlocks.
+
+### Pagination and diagnostics
+
+- Prefer cursor/keyset pagination in repository queries (`WHERE id > :lastId ORDER BY id`) over deep `OFFSET` pages.
+- Use `EXPLAIN (ANALYZE, BUFFERS)` on slow DQL or native queries during performance investigation — look for sequential scans and high "rows removed by filter".
+- Use `pg_stat_statements` and regular `VACUUM`/`ANALYZE` maintenance when investigating recurring slow queries or stale table statistics.
+
+### Data access and connections
+
+- Prefer batch inserts (`INSERT INTO … VALUES (…), (…), …`) over row-by-row inserts in bulk data paths (fixtures, imports, migrations).
+- Grant the application DB user least-privilege permissions — only the tables and operations it needs (no superuser or blanket `GRANT ALL`).
+- Use connection pooling (e.g. PgBouncer) when concurrency is high; keep `EntityManager` connection scope short.
+- Use `FOR UPDATE SKIP LOCKED` when multiple workers dequeue rows from a shared queue table — bare `FOR UPDATE` without `SKIP LOCKED` on queue head rows blocks concurrent workers.
+
+### Advanced features
+
+- Index JSONB with GIN when using `json` / `jsonb` Doctrine types; query with containment operators (`@>`), not B-tree.
+- Use `tsvector` + GIN for full-text search; prefer `to_tsvector`/`plainto_tsquery` over `LIKE '%term%'` on large text columns.

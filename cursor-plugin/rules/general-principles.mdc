@@ -1,0 +1,20 @@
+---
+description: General coding principles — scope, conventions, simplicity, comments, performance, dead code, edge cases, commit hygiene.
+alwaysApply: false
+---
+
+## General principles
+
+> **Examples:** `../examples/general-principles.md`
+
+- Minimize scope — only change what the task requires.
+- Match existing naming, types, and patterns in the surrounding code (PSR-12 four-space indent in PHP; snake_case Twig template paths).
+- Application service, producer, and module function names should describe **what** they do or perform (domain action, command, entity change, message type) — not **how** (transport, protocol, storage mechanism), **where** (downstream system, queue, database replica), or **why/when** (caller trigger, lifecycle step) unless that distinction is the actual domain responsibility.
+- Prefer simple, readable solutions over clever abstractions — flag nested `if` pyramids (roughly four or more levels) and one-line `array_reduce` / ternary expressions that hide business rules.
+- Add comments only for non-obvious business logic or tricky technical details.
+- Suggest performance improvements when relevant — including **loop-invariant and per-row-key lookups**: repository `find*` / `get*` calls and service resolvers inside `foreach` / `array_map` whose arguments do not depend on the loop variable (or depend only on a small set of distinct keys) must not run per iteration. Collect distinct keys first, **load all matches in one batch query** (`IN (:keys)` / `findBy…In` / a plural service method), build a map, then index inside the loop.
+- Remove dead code, unused variables, imports, and commented-out blocks.
+- Consider edge cases: empty collections, null values, boundary conditions — especially `$arr[0]` / `first()` on arrays that may be empty.
+- When validation guards throw, each distinct failure reason should surface in its own message — flag compound `if (A || B) throw` (or `&&`) that merges unrelated preconditions into one exception string.
+- Flag variables or DTO properties doing **double duty** — one value encoding both payload presence and a separate business outcome (e.g. `null` array meaning “not ready” instead of an explicit `bool` or result type).
+- Keep pull requests focused on a single concern; commit messages should explain the *why*.

@@ -1,0 +1,43 @@
+---
+description: Symfony standards — structure, controllers, services, forms, i18n, assets, security, deprecations.
+alwaysApply: false
+---
+
+## Symfony ([The Symfony framework best practices](https://symfony.com/doc/current/best_practices.html))
+
+> **Examples:** `../examples/symfony/controllers.php`, `../examples/symfony/templates-and-i18n.md`
+
+- Follow the default directory structure; organize application code by PHP namespace, not custom bundles — do not create application-specific bundles.
+- Extend `AbstractController`; use PHP attributes for routing, security, and caching.
+- Inject services via constructor or action method arguments — do not call `$this->container->get()` for application services.
+- Keep application services `private: true` in `services.yaml` — only framework entry points should be public.
+- Keep controllers thin (glue code only); place business logic in dedicated services.
+- Extract repeated blocks shared by multiple actions (decode/validate preambles, entity guards, error handling) into private methods or small resolver services — same **DRY** rule applies to services, Twig, CSS, and JS; controllers are one common hotspot, not the only one.
+- **Services must not mutate the HTTP request** — do not call `$request->request->remove()`, `->set()`, or `->replace()` inside application services; callers do not expect input bags to change as a side effect. Strip consumed parameters in the controller (or use a dedicated request DTO) after the service returns.
+- **DTOs under `src/Dto/` must be passive data carriers** — no `EntityManagerInterface`, `->persist()`, `->flush()`, or `persistResult()`-style methods. Collect mutated entities on a result object if needed, but persistence belongs in the owning application service (or a dedicated persister), not in the DTO namespace.
+- Use a single security firewall unless the app has legitimately separate authentication domains (e.g. form login for web + token auth for API only).
+- Validate incoming request data with defined validators/constraints **before** any business logic runs.
+- Use autowiring and keep services private; configure custom services in YAML when needed.
+- Define forms as PHP classes; attach validation constraints to entities/DTOs, not individual form fields.
+- Add form submit buttons in Twig templates (not form classes) so labels and styling stay in the view; define buttons in the controller only when multiple submit actions exist.
+- Use Symfony validation (`ValidatorInterface`, constraints, form validation) for all user input and domain objects.
+- Set up proper logging (Monolog) for errors, security events, and important operations.
+- Use PHP attributes for Doctrine entity mapping.
+- Page templates must `{% extends %}` a base layout unless the file **is** the root layout; flag standalone pages that only `{% include %}` fragments without extending `base.html.twig`.
+- Always use Bootstrap for styling; avoid inline CSS — prefer Bootstrap utilities/components or external stylesheets; flag `style="…"` on HTML elements in Twig.
+- Wrap all user-facing text in `{% trans %}...{% endtrans %}` (excluding code or non-visible text).
+- Use translation keys that describe purpose (`label.username`), not literal content strings (`edit_form.label.username`).
+- Store translation files in XLIFF format for translator tooling support.
+- Use `AssetMapper` to manage web assets — flag hard-coded `<script src="/assets/…">` or `/build/…` tags alongside `importmap()` in the same layout.
+- Implement fine-grained authorization with voters when `#[Security]` or `#[IsGranted]` expressions grow complex (nested `is_granted()`, regex, or `or`/`and` chains).
+- Register `access_control` rules (or attribute-based security) for `/api`, `/internal`, and admin routes — flag open firewalls when controllers expose mutating or data endpoints.
+- Smoke-test public URLs in functional tests; assert response content and side effects, not only HTTP 200 — flag tests that only call `$router->generate()` without checking behavior.
+
+### Deprecations
+
+- Do not call deprecated Symfony, Doctrine, or third-party APIs — use the documented replacement before merging.
+- When deprecating application code, use `trigger_deprecation()` from `symfony/deprecation-contracts` with package name, version, and message (supports `sprintf`-style placeholders).
+- Keep PHPUnit configured to fail on deprecations (`failOnDeprecation="true"`) and register Symfony/Doctrine triggers in `phpunit.xml` / `phpunit.dist.xml` (`trigger_deprecation`, `Doctrine\Deprecations\Deprecation::trigger`, `Doctrine\Deprecations\Deprecation::delegateTriggerToBackend`).
+- Run the full test suite after Symfony or Doctrine upgrades; fix all reported deprecations before merging.
+- After config or service changes, check compile-time container deprecations with `php bin/console debug:container --deprecations`.
+- Do not suppress deprecation notices with `@` or by raising `SYMFONY_DEPRECATIONS_HELPER` thresholds except temporarily during a documented major-version migration.

@@ -1,0 +1,23 @@
+---
+description: CSS standards — formatting, comments, structure, selectors, methodology, tokens, Sass, build pipeline.
+alwaysApply: false
+---
+
+## CSS ([MDN Organizing your CSS](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Styling_basics/Organizing))
+
+> **Examples:** `../examples/styles.css`
+
+- Follow the project's existing CSS style guide and methodology when one is in use; consistency across the codebase matters more than personal preference.
+- Keep formatting consistent — pick one indentation style (spaces or tabs) and one color notation (`#hex`, `rgb()`, or custom properties) and use it throughout.
+- Put each declaration on its own line inside rule blocks; avoid cramming multiple properties onto a single line.
+- Use section comments with a unique searchable marker (e.g. `/* || General styles */`) between logical groups so files are easy to scan and jump through.
+- Comment non-obvious decisions — browser fallbacks, workarounds, and links to tutorials or specs — not self-explanatory declarations.
+- Order rules within a stylesheet: general element defaults (`body`, headings, lists, tables, links) → utility classes → sitewide layout (header, nav) → page- or component-specific styles.
+- Prefer class selectors over long compound selectors (`article.main p.box`); avoid duplicating rules because specificity locked styles to one context.
+- Split large stylesheets by concern — a global base file plus section- or feature-specific files linked only where needed — to reduce merge conflicts and keep cascade predictable.
+- Extract shared layout patterns into reusable classes (OOCSS-style) instead of copying near-identical rules for each component variant.
+- When the diff adds or changes CSS, compare new/changed selectors across files in the same feature — flag near-duplicate rule blocks (same declarations, different class name or one property) that should share a base class or custom property.
+- When the project uses a naming methodology (BEM, SMACSS, ITCSS), follow its block/element/modifier conventions consistently.
+- Centralize design tokens in CSS custom properties (`:root { --color-primary: … }`) or Sass variables; reference tokens instead of hard-coding repeated values.
+- Use Sass partials and `@use` to compose component stylesheets when the build pipeline supports it; ship compiled CSS in production.
+- Run post-processing (e.g. cssnano) in production builds to strip comments and whitespace without sacrificing readable source files.

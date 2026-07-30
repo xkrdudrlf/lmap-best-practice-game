@@ -1,0 +1,19 @@
+---
+description: Deployment and config standards — 12-Factor app principles for env, statelessness, logs, and release stages.
+alwaysApply: false
+---
+
+## Deployment and config [12-Factor](https://12factor.net/)
+
+> **Examples:** `../examples/twelve-factor.md`
+
+- Store infrastructure config (database URLs, API keys, ports) in environment variables, not hard-coded values.
+- Keep `.env*` files empty except for comments; inject real values via environment at runtime.
+- Use Symfony secrets or env vars for sensitive values; keep application-behavior parameters in `config/services.yaml` with an `app.` prefix.
+- Use constants to define options that rarely change.
+- Design processes as stateless; persist durable state in backing services (database, cache, queue), not local filesystem or in-memory globals.
+- Treat backing services (DB, mail, cache) as attached resources swappable via config without code changes.
+- Treat logs as event streams — write structured logs to stdout/stderr via Monolog; never use `dump()` or `var_dump()` in production paths.
+- Run admin and maintenance tasks as one-off console processes (`bin/console`), not as long-lived web requests.
+- Maintain dev/prod parity for dependencies, config keys, and backing services.
+- Strictly separate build, release, and run stages — compile assets and install dependencies at build time; inject config at release/run time.

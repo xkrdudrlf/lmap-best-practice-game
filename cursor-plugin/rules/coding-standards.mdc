@@ -1,0 +1,110 @@
+---
+description: General coding standards for clear, maintainable changes. During code review, read only the sections that match changed file types (see Code review scope).
+alwaysApply: false
+---
+
+## Code review scope
+
+**During code review, read only the standards sections that match files in the diff.** Do not load, skim, or apply standards from unrelated sections — even if you know them from memory.
+
+### How to scope
+
+1. Collect every file path under review (from the diff, PR, or an explicit directory such as `backend/`).
+2. For each file, find every matching row in **Section map by changed file** below. **Union** all listed sections across all files.
+3. Always include **General principles**, **Software design**, and **Review detection checklist**.
+4. For each scoped section, open its **Rules file** from the **Section files** table below and read that file in full — not the entire standards tree.
+5. Read the paired **examples** file(s) from the **Rule examples** table for each section you apply — not examples for sections you skipped.
+6. When a finding maps to a standard, cite the **Standard** label from `skills/lmap-code-review/SKILL.md` and quote from that section's examples only.
+7. Walk **every** row in **Review detection checklist** (`review-detection-checklist.mdc`) whose file-type column matches at least one file under review; report a finding for each hit (do not stop after security issues).
+
+### Directory-wide review (no diff)
+
+When the user asks to review a directory, package, or tree (e.g. "all files in `backend/`"):
+
+1. Enumerate **all** source files under that path — PHP, Twig, JS, CSS, YAML config, migrations, Docker/compose, tests — not only recently changed files.
+2. Union sections from **every** file using the section map; expect most sections to apply for a full Symfony backend.
+3. Review **composed output** for Twig: mentally merge `extends` / `include` / `embed` chains (layout + page + partials) and flag duplicate landmarks, headings, and document shells.
+4. Cross-check `config/packages/security.yaml` `access_control` and route `#[IsGranted]` attributes against every controller action that mutates data or exposes internal/admin/API surfaces.
+5. Cross-check `phpunit*.xml` deprecation settings and `composer.json` / CI for dependency audit coverage.
+
+For implementation tasks (not review), read the sections relevant to the files you are editing.
+
+### Section map by changed file
+
+Union every matching row for each changed file. A single file may match multiple rows (e.g. a Doctrine entity matches `.php` and Doctrine entities).
+
+| Changed files | Sections to read |
+|---------------|------------------|
+| Any changed file | General principles, Software design, Review detection checklist |
+| `.php` (when no more specific row below applies) | PHP, Security, Deployment and config (12-Factor) |
+| `src/Helper/**`, `src/Util/**` | PHP, Security |
+| `src/EventListener/**`, `**/EventListener/**` | Doctrine ORM, Symfony (incl. deprecations), Security |
+| `.js`, `.ts`, `.mjs` | JavaScript, Security |
+| `.js` using jQuery (`$`, `jQuery`) | jQuery, JavaScript, Security |
+| `assets/**` (JS/CSS) | JavaScript, CSS, Symfony (AssetMapper), Security; add jQuery when `$`/`jQuery` appear |
+| `.css`, `.scss`, `.sass` stylesheets | CSS, Security |
+| Symfony controllers, services, `config/` | Symfony (incl. deprecations), Security, Deployment and config (12-Factor) |
+| Symfony forms, translations (`translations/`) | Symfony (forms, i18n, deprecations), Security |
+| `phpunit*.xml`, Symfony/Doctrine version bumps | Symfony (deprecations), Security |
+| `tests/**` (functional, unit) | Symfony, PHP, Security |
+| API controllers / API routes / `**/Controller/Api/**` | API endpoints, Symfony, Security |
+| `.twig` templates | HTML in Twig templates, Twig, Symfony (template conventions) |
+| `.twig` with PascalCase file/dir names (`ProductTile.html.twig`) | Symfony (template conventions), Twig |
+| `.sql`, `**/migrations/**`, schema DDL | PostgreSQL |
+| Doctrine entities, repositories, `Entity/` | Doctrine ORM, PostgreSQL, PHP, Symfony |
+| `composer.json`, `package.json`, Docker, CI, `Dockerfile*` | Security (incl. CI audits), Deployment and config (12-Factor) |
+| `*Controller.php`, `src/Input/**`, any PHP with `getEntityById` | LMAP |
+| `compose.yaml`, `compose.*.yaml` | Security, Deployment and config (12-Factor) |
+| Config / env files (`.env*`, `services.yaml`, etc.) | Security, Deployment and config (12-Factor) |
+
+When reviewing a pull request (not just a local diff), also apply **General principles** bullets on commit/PR focus.
+
+## Section files
+
+Each section below maps to a rules file in this directory. Read only the files for sections in your scoped union.
+
+| Section | Rules file |
+|---------|------------|
+| General principles | `general-principles.mdc` |
+| Software design | `software-design.mdc` |
+| PHP | `php.mdc` |
+| JavaScript | `javascript.mdc` |
+| jQuery | `jquery.mdc` |
+| CSS | `css.mdc` |
+| PostgreSQL | `postgresql.mdc` |
+| Doctrine ORM | `doctrine-orm.mdc` |
+| Security | `security.mdc` |
+| Deployment and config (12-Factor) | `deployment-twelve-factor.mdc` |
+| Symfony (incl. deprecations) | `symfony.mdc` |
+| Symfony (forms, i18n, deprecations) | `symfony.mdc` |
+| Symfony (template conventions) | `symfony.mdc`, `twig.mdc`, `html-in-twig.mdc` |
+| Symfony (AssetMapper) | `symfony.mdc`, `javascript.mdc`, `css.mdc` |
+| API endpoints | `api-endpoints.mdc` |
+| Twig | `twig.mdc` |
+| HTML in Twig templates | `html-in-twig.mdc` |
+| LMAP | `lmap.mdc` |
+| Review detection checklist | `review-detection-checklist.mdc` |
+
+## Rule examples
+
+These bullets are the source of truth. When applying a standard or drafting review feedback, read the matching **examples** file for **don't-do / prefer** code pairs, **why**, and **why-not** — that helps recognize violations in real diffs.
+
+| Section below | Examples file |
+|---------------|---------------|
+| General principles | `../examples/general-principles.md` |
+| Software design | `../examples/software-design.php` |
+| PHP | `../examples/php.php` |
+| JavaScript | `../examples/javascript.js` |
+| jQuery | `../examples/jquery.js` |
+| CSS | `../examples/styles.css` |
+| PostgreSQL | `../examples/postgresql.sql` |
+| Doctrine ORM | `../examples/doctrine.php` |
+| Security | `../examples/security.md` |
+| Deployment and config (12-Factor) | `../examples/twelve-factor.md` |
+| Symfony | `../examples/symfony/controllers.php`, `../examples/symfony/templates-and-i18n.md` |
+| API endpoints | `../examples/api.php` |
+| Twig | `../examples/twig/style.examples.html.twig` |
+| HTML in Twig templates | `../examples/html-twig/document-shell.html.twig`, `../examples/html-twig/composition-and-semantics.html.twig` |
+| LMAP | `../examples/lmap.md` |
+
+Full index: `../examples/README.md`.

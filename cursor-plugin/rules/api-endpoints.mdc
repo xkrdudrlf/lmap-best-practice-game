@@ -1,0 +1,19 @@
+---
+description: API endpoint standards — REST resource design, HTTP methods, pagination, versioning, error responses.
+alwaysApply: false
+---
+
+## API endpoints [Google Cloud API Design + REST](https://docs.cloud.google.com/apis/design)
+
+> **Examples:** `../examples/api.php`
+
+- Design APIs resource-oriented: nouns in URLs, standard HTTP methods mapped to Get, List, Create, Update, Delete.
+- Use plural resource names and consistent hierarchies (e.g. `/users/{userId}/orders/{orderId}`).
+- Use hyphens for readability in URL path segments.
+- Return appropriate HTTP status codes and structured, machine-readable error responses (code, message, optional details).
+- Each distinct validation or business-rule failure should produce its own error message (or machine-readable code) — do not combine unrelated checks into one `if` that throws a single blended message.
+- Use consistent field naming (camelCase in JSON) and standard fields (`name`, `createTime`, `updateTime`) where applicable.
+- Paginate List endpoints — accept `pageSize` / `pageToken` (or equivalent) and return a `nextPageToken` when more results exist.
+- Use `PUT` for full resource replacement and `PATCH` for partial updates; make mutating operations idempotent where possible.
+- Version APIs when breaking changes are unavoidable; preserve backward compatibility when possible.
+- Do not expose internal implementation details in URLs when a stable resource identifier exists — flag path segments that name storage technology (`/mysql/`, `/postgres/`, `/redis/`) or RPC verbs (`removeStockUnit`, `applyPatch`).

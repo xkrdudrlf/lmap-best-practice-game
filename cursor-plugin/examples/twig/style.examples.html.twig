@@ -1,0 +1,109 @@
+{# Twig — Rule Examples (coding-standards.mdc) #}
+{# Each block: RULE, WHY, WHY NOT, DON'T DO, PREFER #}
+
+{# =============================================================================
+   RULE: One space after {{, {% and before }}, %} when content is non-empty
+   WHY: Twig CS consistency; whitespace control (-) attaches to delimiter.
+   WHY NOT: {{user}} and {{ user}} fail CS fixers and confuse readability.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {{user.name}} #}
+{# {%if user%}...{%endif%} #}
+
+{# --- PREFER --- #}
+{{ user.name }}
+{% if user %}
+  ...
+{% endif %}
+
+{# Whitespace control: attach - to delimiter #}
+{{- user.name -}}
+
+{# =============================================================================
+   RULE: One space around comparison, math, logic, ternary operators
+   WHY: Expressions parse unambiguously for humans and linters.
+   WHY NOT: `a==b` and `a+b` cram tokens and fail twig-cs-fixer rules.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {% if count>0 and active==true %} #}
+
+{# --- PREFER --- #}
+{% if count > 0 and active == true %}
+
+{# =============================================================================
+   RULE: Space after : in mappings and after , in sequences; no spaces inside [] {}
+   WHY: Matches official Twig coding standards for collections.
+   WHY NOT: `{ 'a':1,'b':2 }` inconsistent spacing breaks automated formatters.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {% set opts = { 'a':1,'b':2 } %} #}
+
+{# --- PREFER --- #}
+{% set opts = { 'a': 1, 'b': 2 } %}
+
+{# =============================================================================
+   RULE: No spaces after ( or before ) in expressions; no spaces around |
+   WHY: Filters and function calls have fixed Twig CS form.
+   WHY NOT: `name | default( 'x' )` is non-idiomatic and flagged by fixers.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {{ name | default( 'Guest' ) }} #}
+
+{# --- PREFER --- #}
+{{ name|default('Guest') }}
+
+{# =============================================================================
+   RULE: Named arguments use : with space after; macro args use = with spaces
+   WHY: Distinguishes macro declarations from function/macro invocations.
+   WHY NOT: `convert_encoding(from='UTF-8')` is invalid — should use colon.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {{ include('partial.html.twig', with_context=false) }} #}
+
+{# --- PREFER --- #}
+{{ include('partial.html.twig', with_context: false) }}
+
+{% macro html_input(class = "input") %}
+  <input class="{{ class }}">
+{% endmacro %}
+
+{# =============================================================================
+   RULE: snake_case for variables, filters, functions, macro args, named args
+   WHY: Aligns with Symfony Twig conventions and translation keys.
+   WHY NOT: camelCase `orderTotal` in templates fights PHP snake_case params.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# {% set orderTotal = order.total %} #}
+
+{# --- PREFER --- #}
+{% set order_total = order.total %}
+
+{# =============================================================================
+   RULE: Indent Twig tags and emitted HTML consistently with nesting depth
+   WHY: Rendered HTML and source both readable in PR review.
+   WHY NOT: Flattened templates hide which block closes which div.
+   ============================================================================= #}
+
+{# --- DON'T DO --- #}
+{# <div>
+{% if items %}
+<ul>{% for item in items %}<li>{{ item.name }}</li>{% endfor %}</ul>
+{% endif %}
+</div> #}
+
+{# --- PREFER --- #}
+<div>
+  {% if items %}
+    <ul>
+      {% for item in items %}
+        <li>{{ item.name }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+</div>
