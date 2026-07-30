@@ -1,6 +1,0 @@
-{
-    "name": "lmap-cursor-plugin",
-    "description": "A plugin for all LMAP cursor plugins.",
-    "version": "1.0.0",
-    "author": { "name": "LMAP" }
-}
